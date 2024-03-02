@@ -248,7 +248,7 @@ func handleSeries(res http.ResponseWriter, req *http.Request) {
 
 		// Proxy
 		respondWithProxy(
-			"/loki/api/v1/query_range",
+			"/loki/api/v1/series",
 			req,
 			res,
 			map[string][]string{"query": queries},
@@ -300,7 +300,7 @@ func handleLabels(res http.ResponseWriter, req *http.Request) {
 	if req.Method == "GET" {
 		// Proxy
 		respondWithProxy(
-			"/loki/api/v1/tail",
+			"/loki/api/v1/labels",
 			req,
 			res,
 			map[string][]string{},
