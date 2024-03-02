@@ -32,3 +32,7 @@ linux-arm64:
 windows-amd64:
 	mkdir -p bin/
 	GOARCH=amd64 GOOS=windows CGO_ENABLED=0 go build -ldflags $(LDFLAGS) -o bin/$(NAME).exe lokiproxy.go
+
+.PHONY: image
+image:
+	docker buildx build --pull . --platform linux/amd64,linux/arm64 --push --tag ghcr.io/remram44/lokiproxy:$(Version)
