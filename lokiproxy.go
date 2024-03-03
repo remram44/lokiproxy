@@ -63,22 +63,22 @@ func main() {
 		lokiUrl = *r
 	}
 
-	// Read TLS configuration
+	// Read upstream TLS configuration
 	{
 		var rootCAs *x509.CertPool
-		argCA := os.Getenv("LOKIPROXY_CA")
+		argCA := os.Getenv("LOKIPROXY_UPSTREAM_CA")
 		if argCA != "" {
 			pem, err := os.ReadFile(argCA)
 			if err != nil {
-				log.Fatalf("can't open CA certificate bundle: %s", err)
+				log.Fatalf("can't open upstream CA certificate bundle: %s", err)
 			}
 			rootCAs = x509.NewCertPool()
 			rootCAs.AppendCertsFromPEM(pem)
 		}
 
 		var certificates []tls.Certificate
-		argCert := os.Getenv("LOKIPROXY_CERT")
-		argKey := os.Getenv("LOKIPROXY_KEY")
+		argCert := os.Getenv("LOKIPROXY_UPSTREAM_CERT")
+		argKey := os.Getenv("LOKIPROXY_UPSTREAM_KEY")
 		if argCert != "" || argKey != "" {
 			cert, err := tls.LoadX509KeyPair(argCert, argKey)
 			if err != nil {
