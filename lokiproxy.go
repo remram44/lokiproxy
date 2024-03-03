@@ -12,6 +12,7 @@ import (
 
 	"github.com/coreos/go-oidc/v3/oidc"
 
+	"github.com/remram44/lokiproxy/internal/config"
 	"github.com/remram44/lokiproxy/internal/parser"
 )
 
@@ -36,8 +37,11 @@ import (
 var proxyClient *http.Client
 var lokiUrl url.URL
 var oidcVerifier *oidc.IDTokenVerifier
+var identityMap *config.FileMultiMap
 
 func main() {
+	ctx, cancelCtx := context.WithCancel(context.Background())
+
 	proxyClient = &http.Client{}
 
 	// Read upstream URL
@@ -95,11 +99,24 @@ func main() {
 		if argClientID == "" {
 			log.Fatalf("LOKIPROXY_OIDC_CLIENT_ID is not set")
 		}
-		provider, err := oidc.NewProvider(context.TODO(), argProvider)
+		provider, err := oidc.NewProvider(ctx, argProvider)
 		if err != nil {
 			log.Fatalf("can't create OIDC provider: %s", err)
 		}
 		oidcVerifier = provider.Verifier(&oidc.Config{ClientID: argClientID})
+	}
+
+	// Read list of user namespaces
+	{
+		arg := os.Getenv("LOKIPROXY_IDENTITY_MAP_FILE")
+		if arg == "" {
+			log.Fatalf("LOKIPROXY_IDENTITY_MAP_FILE is not set")
+		}
+		var err error
+		identityMap, err = config.NewFileMultiMap(arg, cancelCtx)
+		if err != nil {
+			log.Fatalf("error loading identity map: %s", err)
+		}
 	}
 
 	// Read listen address
@@ -154,8 +171,14 @@ func getNamespacesForUser(res http.ResponseWriter, req *http.Request) (map[strin
 	}
 	log.Printf("id token: %#v", idToken.Subject)
 
-	// TODO: Get allowed namespaces for user
-	allowedNamespaces := make(map[string]interface{})
+	// Get allowed namespaces for user
+	allowedNamespaces, ok := identityMap.Get(idToken.Subject)
+	if !ok {
+		log.Printf("request from unknown user %s", idToken.Subject)
+		res.WriteHeader(403)
+		io.WriteString(res, "unknown user")
+		return nil, false
+	}
 
 	return allowedNamespaces, true
 }
