@@ -16,3 +16,20 @@ I look up their OIDC identity, find out their namespaces are "reprostudy" and "l
 ```
 
 This allows for multitenancy of my logging system without splitting logs between different Loki tenants, as that would prevent operators from querying across namespaces easily.
+
+## How to use
+
+The proxy is controlled by a file which specifies which labels (in LogQL syntax) are required for which users (OIDC subject). Lines starting with a `#` are ignored. For example:
+
+```plain
+# Remi has access to two job values
+http://cilogon.org/serverA/users/12345
+  job=~"kubernetes-audit|kubernetes-pods"
+# Vicky has access to specific pod logs
+http://cilogon.org/serverA/users/34567
+  job="kubernetes-pods"
+  namespace=~"reproducibility|taguette"
+# Rob has access to all but audit logs
+http://cilogon.org/serverA/users/56789
+  job!="kubernetes-audit
+```
