@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"io"
 	"log"
 	"net/http"
@@ -139,8 +140,12 @@ func main() {
 		Addr:    listenAddr,
 		Handler: mux,
 	}
+	context.AfterFunc(ctx, func() { server.Close() })
 	log.Printf("Listening on %s", listenAddr)
-	log.Fatal(server.ListenAndServe())
+	err := server.ListenAndServe()
+	if !errors.Is(err, http.ErrServerClosed) {
+		log.Fatal(server.ListenAndServe())
+	}
 }
 
 func sendError(res http.ResponseWriter, message string) {
