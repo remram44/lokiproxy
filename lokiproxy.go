@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -164,7 +165,7 @@ func makeProxyUrl(path string) url.URL {
 	return r
 }
 
-func getNamespacesForUser(res http.ResponseWriter, req *http.Request) (map[string]interface{}, bool) {
+func getRequiredLabelsForUser(res http.ResponseWriter, req *http.Request) (map[string]interface{}, bool) {
 	// Get user identity
 	idTokens := req.Header["X-Id-Token"]
 	if idTokens == nil || len(idTokens) != 1 {
@@ -181,8 +182,8 @@ func getNamespacesForUser(res http.ResponseWriter, req *http.Request) (map[strin
 	}
 	log.Printf("id token: %#v", idToken.Subject)
 
-	// Get allowed namespaces for user
-	allowedNamespaces, ok := identityMap.Get(idToken.Subject)
+	// Get required labels for user
+	requiredLabels, ok := identityMap.Get(idToken.Subject)
 	if !ok {
 		log.Printf("request from unknown user %s", idToken.Subject)
 		res.WriteHeader(403)
@@ -190,7 +191,7 @@ func getNamespacesForUser(res http.ResponseWriter, req *http.Request) (map[strin
 		return nil, false
 	}
 
-	return allowedNamespaces, true
+	return requiredLabels, true
 }
 
 func respondWithProxy(
@@ -252,14 +253,17 @@ func handleQuery(res http.ResponseWriter, req *http.Request) {
 		}
 		query := args["query"][0]
 
-		// Find user, get allowed namespaces
-		allowedNamespaces, ok := getNamespacesForUser(res, req)
+		// Find user, get required labels
+		requiredLabels, ok := getRequiredLabelsForUser(res, req)
 		if !ok {
 			return
 		}
 
 		// Rewrite query
-		query = parser.ProcessQuery(query, allowedNamespaces)
+		query, err := parser.ProcessQuery(query, requiredLabels)
+		if err != nil {
+			sendError(res, fmt.Sprintf("error parsing query: %s", err))
+		}
 
 		// Proxy
 		respondWithProxy(
@@ -286,13 +290,16 @@ func handleQueryRange(res http.ResponseWriter, req *http.Request) {
 		query := args["query"][0]
 
 		// Find user, get allowed namespaces
-		allowedNamespaces, ok := getNamespacesForUser(res, req)
+		requiredLabels, ok := getRequiredLabelsForUser(res, req)
 		if !ok {
 			return
 		}
 
 		// Rewrite query
-		query = parser.ProcessQuery(query, allowedNamespaces)
+		query, err := parser.ProcessQuery(query, requiredLabels)
+		if err != nil {
+			sendError(res, fmt.Sprintf("error parsing query: %s", err))
+		}
 
 		// Proxy
 		respondWithProxy(
@@ -315,14 +322,18 @@ func handleSeries(res http.ResponseWriter, req *http.Request) {
 		queries := args["match[]"]
 
 		// Find user, get allowed namespaces
-		allowedNamespaces, ok := getNamespacesForUser(res, req)
+		requiredLabels, ok := getRequiredLabelsForUser(res, req)
 		if !ok {
 			return
 		}
 
 		// Rewrite query
 		for key := range queries {
-			queries[key] = parser.ProcessQuery(queries[key], allowedNamespaces)
+			var err error
+			queries[key], err = parser.ProcessQuery(queries[key], requiredLabels)
+			if err != nil {
+				sendError(res, fmt.Sprintf("error parsing query: %s", err))
+			}
 		}
 
 		// Proxy
@@ -353,13 +364,16 @@ func handleTail(res http.ResponseWriter, req *http.Request) {
 		query := args["query"][0]
 
 		// Find user, get allowed namespaces
-		allowedNamespaces, ok := getNamespacesForUser(res, req)
+		requiredLabels, ok := getRequiredLabelsForUser(res, req)
 		if !ok {
 			return
 		}
 
 		// Rewrite query
-		query = parser.ProcessQuery(query, allowedNamespaces)
+		query, err := parser.ProcessQuery(query, requiredLabels)
+		if err != nil {
+			sendError(res, fmt.Sprintf("error parsing query: %s", err))
+		}
 
 		// Proxy
 		respondWithProxy(
@@ -408,13 +422,16 @@ func handleIndexStats(res http.ResponseWriter, req *http.Request) {
 		query := args["query"][0]
 
 		// Find user, get allowed namespaces
-		allowedNamespaces, ok := getNamespacesForUser(res, req)
+		requiredLabels, ok := getRequiredLabelsForUser(res, req)
 		if !ok {
 			return
 		}
 
 		// Rewrite query
-		query = parser.ProcessQuery(query, allowedNamespaces)
+		query, err := parser.ProcessQuery(query, requiredLabels)
+		if err != nil {
+			sendError(res, fmt.Sprintf("error parsing query: %s", err))
+		}
 
 		// Proxy
 		respondWithProxy(
