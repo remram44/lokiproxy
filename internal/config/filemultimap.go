@@ -7,14 +7,18 @@ import (
 	"log"
 	"os"
 	"strings"
+	"sync/atomic"
+	"time"
 )
 
-func load(filename string, data map[string]map[string]interface{}) error {
+func load(filename string) (map[string]map[string]interface{}, error) {
 	file, err := os.Open(filename)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer file.Close()
+
+	data := make(map[string]map[string]interface{})
 
 	currentKey := ""
 	currentValues := make(map[string]interface{})
@@ -37,7 +41,7 @@ func load(filename string, data map[string]map[string]interface{}) error {
 			currentKey = trimmed
 		} else { // value
 			if currentKey == "" {
-				return fmt.Errorf("value before any key line %d", lineNum)
+				return nil, fmt.Errorf("value before any key line %d", lineNum)
 			}
 			currentValues[trimmed] = nil
 		}
@@ -46,29 +50,44 @@ func load(filename string, data map[string]map[string]interface{}) error {
 		data[currentKey] = currentValues
 	}
 
-	return nil
+	return data, nil
 }
 
 type FileMultiMap struct {
-	data map[string]map[string]interface{}
+	data atomic.Pointer[map[string]map[string]interface{}]
 }
 
 func NewFileMultiMap(filename string, ctxCancel context.CancelFunc) (*FileMultiMap, error) {
-	data := make(map[string]map[string]interface{})
+	// Load file now
 	log.Printf("loading %s", filename)
-	if err := load(filename, data); err != nil {
-		log.Printf("error loading file: %s", err)
+	data, err := load(filename)
+	if err != nil {
 		ctxCancel()
-		return nil, err
+		return nil, fmt.Errorf("error loading file: %e", err)
 	}
-	// TODO: Reload file automatically
-	res := &FileMultiMap{
-		data: data,
-	}
+
+	// Create object
+	res := &FileMultiMap{}
+	res.data.Store(&data)
+
+	// Reload file automatically
+	go func() {
+		for {
+			time.Sleep(1 * time.Minute)
+			data, err := load(filename)
+			if err != nil {
+				ctxCancel()
+				log.Printf("error loading file: %s", err)
+				return
+			}
+			res.data.Store(&data)
+		}
+	}()
+
 	return res, nil
 }
 
 func (self *FileMultiMap) Get(key string) (map[string]interface{}, bool) {
-	res, ok := self.data[key]
+	res, ok := (*self.data.Load())[key]
 	return res, ok
 }
