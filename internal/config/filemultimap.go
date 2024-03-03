@@ -7,8 +7,6 @@ import (
 	"log"
 	"os"
 	"strings"
-
-	"github.com/fsnotify/fsnotify"
 )
 
 func load(filename string, data map[string]map[string]interface{}) error {
@@ -56,41 +54,14 @@ type FileMultiMap struct {
 }
 
 func NewFileMultiMap(filename string, ctxCancel context.CancelFunc) (*FileMultiMap, error) {
-	watcher, err := fsnotify.NewWatcher()
-	if err != nil {
-		return nil, err
-	}
 	data := make(map[string]map[string]interface{})
 	log.Printf("loading %s", filename)
 	if err := load(filename, data); err != nil {
 		log.Printf("error loading file: %s", err)
 		ctxCancel()
+		return nil, err
 	}
-	log.Printf("map: %#v", data) // TODO
-	go func() {
-		for {
-			select {
-			case event, ok := <-watcher.Events:
-				if !ok {
-					return
-				}
-				if event.Has(fsnotify.Write) {
-					log.Printf("reloading %s", filename)
-					if err := load(filename, data); err != nil {
-						log.Printf("error loading file: %s", err)
-						ctxCancel()
-					}
-					log.Printf("map: %#v", data) // TODO
-				}
-			case err, ok := <-watcher.Errors:
-				if !ok {
-					return
-				}
-				log.Printf("error watching %s: %s", filename, err)
-				ctxCancel()
-			}
-		}
-	}()
+	// TODO: Reload file automatically
 	res := &FileMultiMap{
 		data: data,
 	}
