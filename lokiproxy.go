@@ -10,6 +10,8 @@ import (
 	"net/url"
 	"os"
 
+	"github.com/coreos/go-oidc/v3/oidc"
+
 	"github.com/remram44/lokiproxy/internal/parser"
 )
 
