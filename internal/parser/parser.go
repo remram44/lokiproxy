@@ -90,12 +90,16 @@ func (self *queryParser) consumeIdentifier() string {
 
 func (self *queryParser) consumeSelectors() error {
 	missingLabels := maps.Clone(self.requiredLabels)
+	insertComma := false
 	for self.pos < len(self.query) {
 		c := self.query[self.pos]
 		if c == '}' {
 			for label := range missingLabels {
-				self.result.WriteString(", ")
+				if insertComma {
+					self.result.WriteString(", ")
+				}
 				self.result.WriteString(label)
+				insertComma = true
 			}
 			self.result.WriteByte('}')
 			self.pos += 1
@@ -124,6 +128,7 @@ func (self *queryParser) consumeSelectors() error {
 					}
 					label.WriteString(s)
 					delete(missingLabels, label.String())
+					insertComma = true
 					break
 				}
 				label.WriteByte(c)

@@ -31,6 +31,12 @@ func TestLogQuery(t *testing.T) {
 		"{job_name=\"myapp\",namespace = \"yes\" } != ip(\"192.168.4.5-192.168.4.20\")",
 		"{job_name=\"myapp\",namespace = \"yes\" } != ip(\"192.168.4.5-192.168.4.20\")",
 	)
+
+	check(
+		t,
+		"123{}",
+		"123{namespace=\"yes\"}",
+	)
 }
 
 func TestInternal(t *testing.T) {
