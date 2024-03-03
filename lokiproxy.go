@@ -62,6 +62,7 @@ func main() {
 		}
 		lokiUrl = *r
 	}
+	log.Printf("upstream scheme: %s", lokiUrl.Scheme)
 
 	// Read upstream TLS configuration
 	{
@@ -74,6 +75,7 @@ func main() {
 			}
 			rootCAs = x509.NewCertPool()
 			rootCAs.AppendCertsFromPEM(pem)
+			log.Printf("upstream custom CA loaded")
 		}
 
 		var certificates []tls.Certificate
@@ -85,6 +87,7 @@ func main() {
 				log.Fatalf("can't load client certificate: %s", err)
 			}
 			certificates = []tls.Certificate{cert}
+			log.Printf("upstream client certificate loaded")
 		}
 
 		proxyClient.Transport = &http.Transport{
@@ -92,6 +95,42 @@ func main() {
 				Certificates: certificates,
 				RootCAs:      rootCAs,
 			},
+		}
+	}
+
+	// Read frontend TLS configuration
+	var serverTLSConfig *tls.Config
+	var serverCertificate *[2]string
+	{
+		argCert := os.Getenv("LOKIPROXY_FRONTEND_CERT")
+		argKey := os.Getenv("LOKIPROXY_FRONTEND_KEY")
+		argCA := os.Getenv("LOKIPROXY_FRONTEND_CA")
+		if argCert != "" || argKey != "" {
+			serverCertificate = &[2]string{argCert, argKey}
+			log.Printf("frontend certificate set")
+
+			var rootCAs *x509.CertPool
+			if argCA != "" {
+				pem, err := os.ReadFile(argCA)
+				if err != nil {
+					log.Fatalf("can't open frontend CA certificate bundle: %s", err)
+				}
+				rootCAs = x509.NewCertPool()
+				rootCAs.AppendCertsFromPEM(pem)
+				serverTLSConfig = &tls.Config{
+					ClientCAs: rootCAs,
+					ClientAuth: tls.RequireAndVerifyClientCert,
+				}
+				log.Printf("frontend CA loaded")
+				log.Printf("frontend using mTLS")
+			} else {
+				log.Printf("frontend using TLS")
+			}
+		} else {
+			if argCA != "" {
+				log.Fatalf("can't use frontend CA without a frontend certificate")
+			}
+			log.Printf("frontend not using TLS")
 		}
 	}
 
@@ -145,10 +184,16 @@ func main() {
 	server := http.Server{
 		Addr:    listenAddr,
 		Handler: mux,
+		TLSConfig: serverTLSConfig,
 	}
 	context.AfterFunc(ctx, func() { server.Close() })
 	log.Printf("Listening on %s", listenAddr)
-	err := server.ListenAndServe()
+	var err error
+	if serverCertificate == nil {
+		err = server.ListenAndServe()
+	} else {
+		err = server.ListenAndServeTLS(serverCertificate[0], serverCertificate[1])
+	}
 	if !errors.Is(err, http.ErrServerClosed) {
 		log.Fatal(server.ListenAndServe())
 	}
