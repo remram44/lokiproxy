@@ -34,6 +34,10 @@ import (
 //   query params to pass: start, end, since
 // GET /loki/api/v1/label/<name>/values
 //   block?
+// GET /loki/api/v1/index/stats
+//   query params to change: query
+//   query params to pass: start, end
+//   can be POST form-urlencoded
 
 var proxyClient *http.Client
 var lokiUrl url.URL
@@ -134,6 +138,7 @@ func main() {
 	mux.HandleFunc("/loki/api/v1/tail", handleTail)
 	mux.HandleFunc("/loki/api/v1/labels", handleLabels)
 	mux.HandleFunc("/loki/api/v1/label/{label}/values", handleLabelValues)
+	mux.HandleFunc("/loki/api/v1/index/stats", handleIndexStats)
 
 	// Create HTTP server
 	server := http.Server{
@@ -334,7 +339,7 @@ func handleSeries(res http.ResponseWriter, req *http.Request) {
 		sendError(res, "not yet implemented")
 	} else {
 		log.Printf("got %s to series", req.Method)
-		sendError(res, "use method GET")
+		sendError(res, "use methods GET or POST")
 	}
 }
 
@@ -391,4 +396,40 @@ func handleLabels(res http.ResponseWriter, req *http.Request) {
 func handleLabelValues(res http.ResponseWriter, _ *http.Request) {
 	res.WriteHeader(403)
 	io.WriteString(res, "label values API is disabled")
+}
+
+func handleIndexStats(res http.ResponseWriter, req *http.Request) {
+	if req.Method == "GET" {
+		args := req.URL.Query()
+		if len(args["query"]) != 1 {
+			sendError(res, "one query expected")
+			return
+		}
+		query := args["query"][0]
+
+		// Find user, get allowed namespaces
+		allowedNamespaces, ok := getNamespacesForUser(res, req)
+		if !ok {
+			return
+		}
+
+		// Rewrite query
+		query = parser.ProcessQuery(query, allowedNamespaces)
+
+		// Proxy
+		respondWithProxy(
+			"/loki/api/v1/index/stats",
+			req,
+			res,
+			map[string][]string{"query": []string{query}},
+			[]string{"start", "end"},
+			req.Context(),
+		)
+	} else if req.Method == "POST" {
+		// TODO
+		sendError(res, "not yet implemented")
+	} else {
+		log.Printf("got %s to index/stats", req.Method)
+		sendError(res, "use methods GET or POST")
+	}
 }
