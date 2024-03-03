@@ -35,6 +35,7 @@ import (
 
 var proxyClient *http.Client
 var lokiUrl url.URL
+var oidcVerifier *oidc.IDTokenVerifier
 
 func main() {
 	proxyClient = &http.Client{}
@@ -84,6 +85,23 @@ func main() {
 		}
 	}
 
+	// Create OIDC verifier
+	{
+		argProvider := os.Getenv("LOKIPROXY_OIDC_PROVIDER")
+		if argProvider == "" {
+			log.Fatalf("LOKIPROXY_OIDC_PROVIDER is not set")
+		}
+		argClientID := os.Getenv("LOKIPROXY_OIDC_CLIENT_ID")
+		if argClientID == "" {
+			log.Fatalf("LOKIPROXY_OIDC_CLIENT_ID is not set")
+		}
+		provider, err := oidc.NewProvider(context.TODO(), argProvider)
+		if err != nil {
+			log.Fatalf("can't create OIDC provider: %s", err)
+		}
+		oidcVerifier = provider.Verifier(&oidc.Config{ClientID: argClientID})
+	}
+
 	// Read listen address
 	listenAddr := os.Getenv("LOKIPROXY_LISTEN_ADDR")
 	if listenAddr == "" {
@@ -117,6 +135,29 @@ func makeProxyUrl(path string) url.URL {
 	r := lokiUrl
 	r.Path = path
 	return r
+}
+
+func getNamespacesForUser(res http.ResponseWriter, req *http.Request) (map[string]interface{}, bool) {
+	// Get user identity
+	idTokens := req.Header["X-Id-Token"]
+	if idTokens == nil || len(idTokens) != 1 {
+		res.WriteHeader(410)
+		io.WriteString(res, "missing ID token")
+		return nil, false
+	}
+	idToken, err := oidcVerifier.Verify(req.Context(), idTokens[0])
+	if err != nil {
+		log.Print("invalid ID token")
+		res.WriteHeader(410)
+		io.WriteString(res, "invalid ID token")
+		return nil, false
+	}
+	log.Printf("id token: %#v", idToken.Subject)
+
+	// TODO: Get allowed namespaces for user
+	allowedNamespaces := make(map[string]interface{})
+
+	return allowedNamespaces, true
 }
 
 func respondWithProxy(
@@ -178,10 +219,11 @@ func handleQuery(res http.ResponseWriter, req *http.Request) {
 		}
 		query := args["query"][0]
 
-		// TODO: Get user auth
-
-		// TODO: Get allowed namespaces for user
-		allowedNamespaces := make(map[string]interface{})
+		// Find user, get allowed namespaces
+		allowedNamespaces, ok := getNamespacesForUser(res, req)
+		if !ok {
+			return
+		}
 
 		// Rewrite query
 		query = parser.ProcessQuery(query, allowedNamespaces)
@@ -210,10 +252,11 @@ func handleQueryRange(res http.ResponseWriter, req *http.Request) {
 		}
 		query := args["query"][0]
 
-		// TODO: Get user auth
-
-		// TODO: Get allowed namespaces for user
-		allowedNamespaces := make(map[string]interface{})
+		// Find user, get allowed namespaces
+		allowedNamespaces, ok := getNamespacesForUser(res, req)
+		if !ok {
+			return
+		}
 
 		// Rewrite query
 		query = parser.ProcessQuery(query, allowedNamespaces)
@@ -238,10 +281,11 @@ func handleSeries(res http.ResponseWriter, req *http.Request) {
 		args := req.URL.Query()
 		queries := args["match[]"]
 
-		// TODO: Get user auth
-
-		// TODO: Get allowed namespaces for user
-		allowedNamespaces := make(map[string]interface{})
+		// Find user, get allowed namespaces
+		allowedNamespaces, ok := getNamespacesForUser(res, req)
+		if !ok {
+			return
+		}
 
 		// Rewrite query
 		for key := range queries {
@@ -275,10 +319,11 @@ func handleTail(res http.ResponseWriter, req *http.Request) {
 		}
 		query := args["query"][0]
 
-		// TODO: Get user auth
-
-		// TODO: Get allowed namespaces for user
-		allowedNamespaces := make(map[string]interface{})
+		// Find user, get allowed namespaces
+		allowedNamespaces, ok := getNamespacesForUser(res, req)
+		if !ok {
+			return
+		}
 
 		// Rewrite query
 		query = parser.ProcessQuery(query, allowedNamespaces)
