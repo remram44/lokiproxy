@@ -33,3 +33,19 @@ http://cilogon.org/serverA/users/34567
 http://cilogon.org/serverA/users/56789
   job!="kubernetes-audit
 ```
+
+The server itself is configured with environment variables:
+
+* Upstream configuration, i.e. how to connect to the Loki server:
+    * `LOKIPROXY_UPSTREAM_URL`: URL of Loki, for example `https://loki.example.org:3100`. Required.
+    * `LOKIPROXY_UPSTREAM_CA`: path to custom CA certificate to validate Loki's certificate. Optional, defaults to system certificate store.
+    * `LOKIPROXY_UPSTREAM_CERT` and `LOKIPROXY_UPSTREAM_KEY`: path to client certificate used to authenticate with Loki (mTLS). Optional, defaults to not presenting a client certificate.
+* Frontend configuration, i.e. how to accept connections from clients (for example Grafana):
+    * `LOKIPROXY_LISTEN_ADDR`: address and port on which to listen for client connections. Can specify a bind address or not, for example `:3100` or `127.0.0.1:443`. Required.
+    * `LOKIPROXY_FRONTEND_CERT` and `LOKIPROXY_FRONTEND_KEY`: path to server certificate. Setting this enables TLS. Optional, defaults to plaintext.
+    * `LOKIPROXY_FRONTEND_CA`: path to CA certificate to validate client certificates. Setting this enables mTLS. Requires frontend certificate and key. Optional, defaults to not requiring client certificates.
+* OIDC configuration, i.e. how to authenticate user requests:
+    * `LOKIPROXY_OIDC_PROVIDER`: OpenID Connect provider URL, used to check the ID tokens provided by clients. Needs to match exactly. For example `https://myorg.us.auth0.com/`. Required.
+    * `LOKIPROXY_OIDC_CLIENT_ID`: OpenID Connect client ID. The secret is NOT required to authenticate ID tokens. Required.
+* Access configuration, i.e. how to validate and transform requests:
+    * `LOKIPROXY_IDENTITY_MAP_FILE`: path to the file mapping OIDC identities to required LogQL label selectors. Required.
