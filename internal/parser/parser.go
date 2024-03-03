@@ -2,7 +2,9 @@ package parser
 
 import (
 	"fmt"
+	"log"
 	"maps"
+	"os"
 	"strings"
 )
 
@@ -148,6 +150,9 @@ func ProcessQuery(query string, requiredLabels map[string]interface{}) (string, 
 	}
 	if err := parser.parse(); err != nil {
 		return "", err
+	}
+	if os.Getenv("LOKIPROXY_DEBUG_SHOW_QUERIES") != "" {
+		log.Printf("%#v -> %#v", query, parser.result.String())
 	}
 	return parser.result.String(), nil
 }
