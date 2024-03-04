@@ -241,17 +241,16 @@ func getRequiredLabelsForUser(res http.ResponseWriter, req *http.Request) (map[s
 
 func respondWithProxy(
 	path string,
-	req *http.Request,
+	args url.Values,
 	res http.ResponseWriter,
 	setArgs map[string][]string,
 	passthroughArgs []string,
 	ctx context.Context,
 ) {
 	// Assemble query parameters
-	origQuery := req.URL.Query()
 	proxyQuery := make(url.Values)
 	for _, key := range passthroughArgs {
-		values, ok := origQuery[key]
+		values, ok := args[key]
 		if ok {
 			proxyQuery[key] = values
 		}
@@ -291,12 +290,16 @@ func respondWithProxy(
 
 func handleQuery(res http.ResponseWriter, req *http.Request) {
 	if req.Method == "GET" {
-		args := req.URL.Query()
-		if len(args["query"]) != 1 {
+		if err := req.ParseForm(); err != nil {
+			sendError(res, "invalid form data")
+			return
+		}
+
+		if len(req.Form["query"]) != 1 {
 			sendError(res, "one query expected")
 			return
 		}
-		query := args["query"][0]
+		query := req.Form["query"][0]
 
 		// Find user, get required labels
 		requiredLabels, ok := getRequiredLabelsForUser(res, req)
@@ -314,7 +317,7 @@ func handleQuery(res http.ResponseWriter, req *http.Request) {
 		// Proxy
 		respondWithProxy(
 			"/loki/api/v1/query",
-			req,
+			req.Form,
 			res,
 			map[string][]string{"query": []string{query}},
 			[]string{"limit", "time", "direction"},
@@ -329,12 +332,16 @@ func handleQuery(res http.ResponseWriter, req *http.Request) {
 
 func handleQueryRange(res http.ResponseWriter, req *http.Request) {
 	if req.Method == "GET" {
-		args := req.URL.Query()
-		if len(args["query"]) != 1 {
+		if err := req.ParseForm(); err != nil {
+			sendError(res, "invalid form data")
+			return
+		}
+
+		if len(req.Form["query"]) != 1 {
 			sendError(res, "one query expected")
 			return
 		}
-		query := args["query"][0]
+		query := req.Form["query"][0]
 
 		// Find user, get allowed namespaces
 		requiredLabels, ok := getRequiredLabelsForUser(res, req)
@@ -352,7 +359,7 @@ func handleQueryRange(res http.ResponseWriter, req *http.Request) {
 		// Proxy
 		respondWithProxy(
 			"/loki/api/v1/query_range",
-			req,
+			req.Form,
 			res,
 			map[string][]string{"query": []string{query}},
 			[]string{"limit", "start", "end", "since", "step", "interval", "direction"},
@@ -366,9 +373,13 @@ func handleQueryRange(res http.ResponseWriter, req *http.Request) {
 }
 
 func handleSeries(res http.ResponseWriter, req *http.Request) {
-	if req.Method == "GET" {
-		args := req.URL.Query()
-		queries := args["match[]"]
+	if req.Method == "GET" || req.Method == "POST" {
+		if err := req.ParseForm(); err != nil {
+			sendError(res, "invalid form data")
+			return
+		}
+
+		queries := req.Form["match[]"]
 
 		// Find user, get allowed namespaces
 		requiredLabels, ok := getRequiredLabelsForUser(res, req)
@@ -389,16 +400,12 @@ func handleSeries(res http.ResponseWriter, req *http.Request) {
 		// Proxy
 		respondWithProxy(
 			"/loki/api/v1/series",
-			req,
+			req.Form,
 			res,
 			map[string][]string{"query": queries},
 			[]string{"limit", "start", "end", "since", "step", "interval", "direction"},
 			req.Context(),
 		)
-	} else if req.Method == "POST" {
-		// TODO
-		sendError(res, "not yet implemented")
-		return
 	} else {
 		log.Printf("got %s to series", req.Method)
 		sendError(res, "use methods GET or POST")
@@ -408,12 +415,16 @@ func handleSeries(res http.ResponseWriter, req *http.Request) {
 
 func handleTail(res http.ResponseWriter, req *http.Request) {
 	if req.Method == "GET" {
-		args := req.URL.Query()
-		if len(args["query"]) != 1 {
+		if err := req.ParseForm(); err != nil {
+			sendError(res, "invalid form data")
+			return
+		}
+
+		if len(req.Form["query"]) != 1 {
 			sendError(res, "one query expected")
 			return
 		}
-		query := args["query"][0]
+		query := req.Form["query"][0]
 
 		// Find user, get allowed namespaces
 		requiredLabels, ok := getRequiredLabelsForUser(res, req)
@@ -431,7 +442,7 @@ func handleTail(res http.ResponseWriter, req *http.Request) {
 		// Proxy
 		respondWithProxy(
 			"/loki/api/v1/tail",
-			req,
+			req.Form,
 			res,
 			map[string][]string{"query": []string{query}},
 			[]string{"delay_for", "limit", "start"},
@@ -446,10 +457,15 @@ func handleTail(res http.ResponseWriter, req *http.Request) {
 
 func handleLabels(res http.ResponseWriter, req *http.Request) {
 	if req.Method == "GET" {
+		if err := req.ParseForm(); err != nil {
+			sendError(res, "invalid form data")
+			return
+		}
+
 		// Proxy
 		respondWithProxy(
 			"/loki/api/v1/labels",
-			req,
+			req.Form,
 			res,
 			map[string][]string{},
 			[]string{"start", "end", "since"},
@@ -468,13 +484,17 @@ func handleLabelValues(res http.ResponseWriter, _ *http.Request) {
 }
 
 func handleIndexStats(res http.ResponseWriter, req *http.Request) {
-	if req.Method == "GET" {
-		args := req.URL.Query()
-		if len(args["query"]) != 1 {
+	if req.Method == "GET" || req.Method == "POST" {
+		if err := req.ParseForm(); err != nil {
+			sendError(res, "invalid form data")
+			return
+		}
+
+		if len(req.Form["query"]) != 1 {
 			sendError(res, "one query expected")
 			return
 		}
-		query := args["query"][0]
+		query := req.Form["query"][0]
 
 		// Find user, get allowed namespaces
 		requiredLabels, ok := getRequiredLabelsForUser(res, req)
@@ -492,16 +512,12 @@ func handleIndexStats(res http.ResponseWriter, req *http.Request) {
 		// Proxy
 		respondWithProxy(
 			"/loki/api/v1/index/stats",
-			req,
+			req.Form,
 			res,
 			map[string][]string{"query": []string{query}},
 			[]string{"start", "end"},
 			req.Context(),
 		)
-	} else if req.Method == "POST" {
-		// TODO
-		sendError(res, "not yet implemented")
-		return
 	} else {
 		log.Printf("got %s to index/stats", req.Method)
 		sendError(res, "use methods GET or POST")
