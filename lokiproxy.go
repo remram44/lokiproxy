@@ -308,6 +308,7 @@ func handleQuery(res http.ResponseWriter, req *http.Request) {
 		query, err := parser.ProcessQuery(query, requiredLabels)
 		if err != nil {
 			sendError(res, fmt.Sprintf("error parsing query: %s", err))
+			return
 		}
 
 		// Proxy
@@ -322,6 +323,7 @@ func handleQuery(res http.ResponseWriter, req *http.Request) {
 	} else {
 		log.Printf("got %s to query", req.Method)
 		sendError(res, "use method GET")
+		return
 	}
 }
 
@@ -344,6 +346,7 @@ func handleQueryRange(res http.ResponseWriter, req *http.Request) {
 		query, err := parser.ProcessQuery(query, requiredLabels)
 		if err != nil {
 			sendError(res, fmt.Sprintf("error parsing query: %s", err))
+			return
 		}
 
 		// Proxy
@@ -358,6 +361,7 @@ func handleQueryRange(res http.ResponseWriter, req *http.Request) {
 	} else {
 		log.Printf("got %s to query_range", req.Method)
 		sendError(res, "use method GET")
+		return
 	}
 }
 
@@ -378,6 +382,7 @@ func handleSeries(res http.ResponseWriter, req *http.Request) {
 			queries[key], err = parser.ProcessQuery(queries[key], requiredLabels)
 			if err != nil {
 				sendError(res, fmt.Sprintf("error parsing query: %s", err))
+				return
 			}
 		}
 
@@ -393,9 +398,11 @@ func handleSeries(res http.ResponseWriter, req *http.Request) {
 	} else if req.Method == "POST" {
 		// TODO
 		sendError(res, "not yet implemented")
+		return
 	} else {
 		log.Printf("got %s to series", req.Method)
 		sendError(res, "use methods GET or POST")
+		return
 	}
 }
 
@@ -418,6 +425,7 @@ func handleTail(res http.ResponseWriter, req *http.Request) {
 		query, err := parser.ProcessQuery(query, requiredLabels)
 		if err != nil {
 			sendError(res, fmt.Sprintf("error parsing query: %s", err))
+			return
 		}
 
 		// Proxy
@@ -432,6 +440,7 @@ func handleTail(res http.ResponseWriter, req *http.Request) {
 	} else {
 		log.Printf("got %s to tail", req.Method)
 		sendError(res, "use method GET")
+		return
 	}
 }
 
@@ -449,6 +458,7 @@ func handleLabels(res http.ResponseWriter, req *http.Request) {
 	} else {
 		log.Printf("got %s to labels", req.Method)
 		sendError(res, "use method GET")
+		return
 	}
 }
 
@@ -476,6 +486,7 @@ func handleIndexStats(res http.ResponseWriter, req *http.Request) {
 		query, err := parser.ProcessQuery(query, requiredLabels)
 		if err != nil {
 			sendError(res, fmt.Sprintf("error parsing query: %s", err))
+			return
 		}
 
 		// Proxy
@@ -490,8 +501,10 @@ func handleIndexStats(res http.ResponseWriter, req *http.Request) {
 	} else if req.Method == "POST" {
 		// TODO
 		sendError(res, "not yet implemented")
+		return
 	} else {
 		log.Printf("got %s to index/stats", req.Method)
 		sendError(res, "use methods GET or POST")
+		return
 	}
 }
