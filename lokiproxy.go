@@ -44,6 +44,7 @@ var proxyClient *http.Client
 var lokiUrl url.URL
 var oidcVerifier *oidc.IDTokenVerifier
 var identityMap *config.FileMultiMap
+var allowAlerts bool = false
 
 func main() {
 	ctx, cancelCtx := context.WithCancel(context.Background())
@@ -170,6 +171,18 @@ func main() {
 		log.Fatalf("LOKIPROXY_LISTEN_ADDR is not set")
 	}
 
+	// Read whether to allow alerts (which don't come with an ID Token)
+	{
+		arg := os.Getenv("LOKIPROXY_ALLOW_ALERTS")
+		if arg == "" || arg == "0" || arg == "false" || arg == "no" {
+			allowAlerts = false
+		} else if arg == "1" || arg == "true" || arg == "yes" {
+			allowAlerts = true
+		} else {
+			log.Fatalf("unrecognized value for LOKIPROXY_ALLOW_ALERTS: %#v", arg)
+		}
+	}
+
 	// Set up routes
 	mux := http.NewServeMux()
 	mux.HandleFunc("/loki/api/v1/query", handleQuery)
@@ -214,6 +227,13 @@ func getRequiredLabelsForUser(res http.ResponseWriter, req *http.Request) (map[s
 	// Get user identity
 	idTokens := req.Header["X-Id-Token"]
 	if idTokens == nil || len(idTokens) != 1 {
+		if idTokens == nil && allowAlerts {
+			alertHeaders := req.Header["Fromalert"]
+			if len(alertHeaders) == 1 && alertHeaders[0] == "true" {
+				log.Print("allowing alert")
+				return make(map[string]interface{}), true
+			}
+		}
 		res.WriteHeader(410)
 		io.WriteString(res, "missing ID token")
 		return nil, false

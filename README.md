@@ -49,3 +49,5 @@ The server itself is configured with environment variables:
     * `LOKIPROXY_OIDC_CLIENT_ID`: OpenID Connect client ID. The secret is NOT required to authenticate ID tokens. Required.
 * Access configuration, i.e. how to validate and transform requests:
     * `LOKIPROXY_IDENTITY_MAP_FILE`: path to the file mapping OIDC identities to required LogQL label selectors. Required.
+* Other settings
+    * `LOKIPROXY_ALLOW_ALERTS`: boolean, whether to allow queries for alerts, which don't come with an ID token. Make sure users can't reach the proxy if enabling this, or they can bypass access control by pretending to be an alert rule (for example, use mTLS). Optional, defaults to disallowing alert queries.
